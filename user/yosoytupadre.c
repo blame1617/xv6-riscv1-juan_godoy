@@ -2,10 +2,15 @@
 #include "user/user.h"
 
 int main() {
-    // Si tienes la syscall getancestor implementada
+    // Testear getppid()
+    int pid_padre = getppid();
+    printf("Mi padre tiene PID: %d\n", pid_padre);
+
+    // Testear getancestor()
     for (int i = 0; i < 5; i++) {
         printf("Ancestro %d: %d\n", i, getancestor(i));
     }
 
     exit(0);
 }
+

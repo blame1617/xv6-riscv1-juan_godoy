@@ -6,6 +6,17 @@
 #include "spinlock.h"
 #include "proc.h"
 
+
+uint64
+sys_getppid(void)
+{
+    struct proc *p = myproc();  // obtiene el proceso actual
+    if (p->parent)
+        return p->parent->pid;  // devuelve PID del padre
+    else
+        return -1;              // si no hay padre (ej. init)
+}
+
 uint64
 sys_getancestor(void) {
   int n;
