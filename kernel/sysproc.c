@@ -7,6 +7,21 @@
 #include "proc.h"
 
 uint64
+sys_getancestor(void) {
+  int n;
+  argint(0, &n);
+  struct proc *p = myproc();
+
+  for (int i = 0; i < n; i++) {
+    if (p->parent)
+      p = p->parent;
+    else
+      return -1;
+  }
+  return p->pid;
+}
+
+uint64
 sys_exit(void)
 {
   int n;
@@ -98,3 +113,4 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
