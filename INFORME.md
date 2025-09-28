@@ -1,4 +1,4 @@
-Informe para Tarea 1 de Manuel Vergara (Sistemas Operativos)
+Informe para Tarea 1 de Manuel Vergara y Juan de Dios Godoy (Sistemas Operativos)
 
 1- Funcionamiento de las llamadas al sistema:
 
