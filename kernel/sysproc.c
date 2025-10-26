@@ -98,3 +98,22 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_settickets(void)
+{
+  int n;
+  
+  // Obtener el argumento de la syscall
+  argint(0, &n);
+  
+  // Llamar a la función settickets
+  return settickets(n);
+}
+
+uint64
+sys_getrunslices(void)
+{
+  // No necesita argumentos, solo retorna el valor
+  return getrunslices();
+}

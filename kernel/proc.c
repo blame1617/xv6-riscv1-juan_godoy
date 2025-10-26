@@ -146,6 +146,10 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // *** INICIALIZAR TICKETS Y RUN_SLICES ***
+  p->tickets = 100;      // Valor por defecto
+  p->run_slices = 0;     // Inicializar contador
+
   return p;
 }
 
@@ -415,42 +419,92 @@ wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
+// Generador de números pseudo-aleatorios simple (LCG)
+static unsigned long rand_seed = 1;
+
+static unsigned long
+random(void)
+{
+  rand_seed = rand_seed * 1103515245 + 12345;
+  return (rand_seed / 65536) % 32768;
+}
+
 void
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
+  
   c->proc = 0;
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting. Then turn them back off
-    // to avoid a possible race between an interrupt
-    // and wfi.
+    // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-    intr_off();
 
-    int found = 0;
+    // *** LOTTERY SCHEDULING ***
+    
+    int found = 0;  // Flag para saber si encontramos un proceso
+    
+    // 1. Calcular el total de tickets de procesos RUNNABLE
+    // ROBUSTEZ: Considerar al menos 1 ticket por proceso RUNNABLE
+    int total_tickets = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        // Usar al menos 1 ticket para el cálculo (sin modificar p->tickets)
+        int tickets = p->tickets;
+        if(tickets < 1) {
+          tickets = 1;  // Mínimo temporal solo para este cálculo
+        }
+        total_tickets += tickets;
       }
       release(&p->lock);
     }
+
+    // 2. Si hay tickets, hacer la lotería
+    if(total_tickets > 0) {
+      // 3. Generar número aleatorio entre 1 y total_tickets
+      int winner = (random() % total_tickets) + 1;
+
+      // 4. Buscar el proceso ganador
+      int acc = 0;
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          // Usar al menos 1 ticket para el cálculo
+          int tickets = p->tickets;
+          if(tickets < 1) {
+            tickets = 1;
+          }
+          acc += tickets;
+          
+          // Si este proceso es el ganador
+          if(acc >= winner) {
+            // Switch to chosen process. It is the process's job
+            // to release its lock and then reacquire it
+            // before jumping back to us.
+            p->state = RUNNING;
+            p->run_slices++;  // Incrementar contador de ejecuciones
+            c->proc = p;
+            swtch(&c->context, &p->context);
+
+            // Process is done running for now.
+            // It should have changed its p->state before coming back.
+            c->proc = 0;
+            found = 1;
+            
+            release(&p->lock);
+            break;  // Salir del loop de búsqueda
+          }
+        }
+        release(&p->lock);
+      }
+    }
+    
+    // Si no hay procesos RUNNABLE (total == 0), continuar sin bloquear
     if(found == 0) {
       // nothing to run; stop running on this core until an interrupt.
+      intr_on();
       asm volatile("wfi");
     }
   }
@@ -671,6 +725,7 @@ procdump(void)
   char *state;
 
   printf("\n");
+  printf("PID\tState\tName\t\tTickets\tSlices\n"); // Cabecera de la tabla
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -678,7 +733,40 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    printf("%d\t%s\t%s\t\t%d\t%d\n", 
+           p->pid, state, p->name, p->tickets, p->run_slices); // Imprimir tickets y run_slices
     printf("\n");
   }
+}
+
+int
+settickets(int n)
+{
+  struct proc *p = myproc();
+  
+  acquire(&p->lock);
+  
+  // Asegurar que tenga al menos 1 ticket
+  if(n < 1) {
+    p->tickets = 1;
+  } else {
+    p->tickets = n;
+  }
+  
+  release(&p->lock);
+  return 0;
+}
+
+// Obtener el número de run_slices del proceso actual
+int
+getrunslices(void)
+{
+  struct proc *p = myproc();
+  int slices;
+  
+  acquire(&p->lock);
+  slices = p->run_slices;
+  release(&p->lock);
+  
+  return slices;
 }

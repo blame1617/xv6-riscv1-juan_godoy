@@ -22,6 +22,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int settickets(int); // Nueva syscall para asignar tickets
+int getrunslices(void);  // *** Nueva syscall para obtener run_slices ***
 
 // ulib.c
 int stat(const char*, struct stat*);
