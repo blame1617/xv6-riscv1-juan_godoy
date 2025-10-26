@@ -1,48 +1,135 @@
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern RISC-V multiprocessor using ANSI C.
+Informe Tarea 2: Juan de Dios Godoy y Manuel Vergara
 
-ACKNOWLEDGMENTS
+Instrucciones de ejecución:
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)).  See also https://pdos.csail.mit.edu/6.1810/, which provides
-pointers to on-line resources for v6.
+Clonar la rama users/blame1617/ramaTarea2 y ejecutarla en WSL idealmente
+make qemu -----> Para compilar XV6
+$ demo ----> Para correr el programa de prueba
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
+1. Funcionamiento y Lógica de la Implementación
+El Lottery Scheduling es un algoritmo de planificación probabilístico donde cada proceso recibe un número de "tickets de lotería". La probabilidad de que un proceso sea seleccionado para ejecutarse es
+proporcional a la cantidad de tickets que posee.
 
-We are also grateful for the bug reports and patches contributed by
-Abhinavpatel00, Takahiro Aoyagi, Marcelo Arroyo, Hirbod Behnam, Silas
-Boyd-Wickizer, Anton Burtsev, carlclone, Ian Chen, clivezeng, Dan
-Cross, Cody Cutler, Mike CAT, Tej Chajed, Asami Doi,Wenyang Duan,
-echtwerner, eyalz800, Nelson Elhage, Saar Ettinger, Alice Ferrazzi,
-Nathaniel Filardo, flespark, Peter Froehlich, Yakir Goaron, Shivam
-Handa, Matt Harvey, Bryan Henry, jaichenhengjie, Jim Huang, Matúš
-Jókay, John Jolly, Alexander Kapshuk, Anders Kaseorg, kehao95,
-Wolfgang Keller, Jungwoo Kim, Jonathan Kimmitt, Eddie Kohler, Vadim
-Kolontsov, Austin Liew, l0stman, Pavan Maddamsetti, Imbar Marinescu,
-Yandong Mao, Matan Shabtay, Hitoshi Mitake, Carmi Merimovich,
-mes900903, Mark Morrissey, mtasm, Joel Nider, Hayato Ohhashi,
-OptimisticSide, papparapa, phosphagos, Harry Porter, Greg Price, Zheng
-qhuo, Quancheng, RayAndrew, Jude Rich, segfault, Ayan Shafqat, Eldar
-Sehayek, Yongming Shen, Fumiya Shigemitsu, snoire, Taojie, Cam Tenny,
-tyfkda, Warren Toomey, Stephen Tu, Alissa Tung, Rafael Ubal, unicornx,
-Amane Uehara, Pablo Ventura, Luc Videau, Xi Wang, WaheedHafez, Keiichi
-Watanabe, Lucas Wolf, Nicolas Wolovick, wxdao, Grant Wu, x653, Andy
-Zhang, Jindong Zhang, Icenowy Zheng, ZhUyU1997, and Zou Chang Wei.
+Ejemplo:
+Si contamos con 400 tickets y los dividimos en 2 procesos
 
-ERROR REPORTS
+Proceso A: 100 tickets (25% de probabilidad de acceder a CPU)
+Proceso B: 300 tickets (75% de probabilidad de acceder a CPU)
 
-Please send errors and suggestions to Frans Kaashoek and Robert Morris
-(kaashoek,rtm@mit.edu).  The main purpose of xv6 is as a teaching
-operating system for MIT's 6.1810, so we are more interested in
-simplifications and clarifications than new features.
+En la práctica esto se puede observar según el número de "slices" de cada proceso, el cual debiera ser mayor mientras más tickets tenga un proceso. Cabe recalcar que en el caso de nuestra implementación no
+se observa una proporcionalidad perfecta en la demo, puesto que al tratarse de un scheduler probabilístico esto puede ir cambiando de iteración en iteración. Además, al ser relativamente pequeña la cantidad
+de trabajo (para que así no demore horas en correr la demo) la variabilidad no alcanza a ser tan grande como lo esperado. En cualquier caso, el hecho de que si se note una diferencia en las slices de los 
+procesos demuestra que los tickets si tienen un efecto en la ejecución de procesos, y por tanto se logró modificar el scheduler original.
 
-BUILDING AND RUNNING XV6
+El scheduler por defecto de xv6 es del tipo round robin, por lo cual debió ser modificado para efectos de esta tarea. El nuevo funcionamiento del scheduler se basa en primer lugar en calcular el total de 
+tickets de los procesos RUNNABLE. Luego, se genera un número pseudo-aleatorio entre 1 y el total de tickets (ya que xv6 no cuenta con la libreria rand()), y para seleccionar al ganador se recorre los procesos
+acumulando sus tickets hasta que la suma sea ≥ al número aleatorio. Posteriormente el proceso ganador recibe el CPU por su quantum de tiempo y finalmente se incrementa el contador run_slices del proceso.
+Esto se repite hasta que finalicen todos los procesos. Una consideración importante es que se valida que cada proceso tenga al menos 1 ticket (robustez).
 
-You will need a RISC-V "newlib" tool chain from
-https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
-riscv64-softmmu.  Once they are installed, and in your shell
-search path, you can run "make qemu".
+2.  Explicación de las modificaciones realizadas (archivos y cambios clave).
+En primer lugar, fue necesario modificar los archivos del kernel, los cuales contienen la lógica del scheduler y procesos: 
+
+kernel/proc.h 
+Cambios: Agregados dos campos nuevos a struct proc
+int tickets;      // Número de tickets para lottery scheduling
+int run_slices;   // Contador de veces que fue ejecutado
+
+kernel/proc.c
+Cambios principales:
+Función allocproc(): Inicializa tickets = 100 y run_slices = 0
+Función settickets(int n): Nueva función para modificar tickets del proceso actual
+Función getrunslices(void): Nueva función para obtener el contador de ejecuciones
+Función scheduler(): Implementación completa del algoritmo de lotería
+                     Generador aleatorio LCG
+                     Cálculo de total de tickets
+                     Selección probabilística
+                     Incremento de run_slices
+                     Manejo de caso total_tickets == 0
+
+kernel/defs.h
+Cambios: Declaraciones de las nuevas funciones
+int settickets(int);
+int getrunslices(void);
+
+kernel/sysproc.c
+Cambios: Implementación de los wrappers de syscalls
+uint64 sys_settickets(void)
+uint64 sys_getrunslices(void)
+
+kernel/syscall.h y kernel/syscall.c
+Cambios: Registro de las nuevas syscalls
+#define SYS_settickets 22
+#define SYS_getrunslices 23
+
+Posteriormente, se modificaron los archivos en el espacio de usuario, el cual realiza las syscall y corre la demo del scheduler:
+
+user/usys.pl
+Cambios: Agregadas entradas para generar stubs de las syscalls
+perlentry("settickets");
+entry("getrunslices");
+
+user/user.h
+Cambios: Declaraciones para el espacio de usuario:
+cint settickets(int);
+int getrunslices(void);
+
+user/demo.c
+Cambios: Programa de prueba que:
+
+Crea 10 procesos con tickets: 50, 100, 150, ..., 500
+Cada proceso ejecuta trabajo intensivo de CPU
+Al terminar, muestra los slices acumulados usando getrunslices()
+
+Makefile
+Cambios: Agregado $U/_demo a la lista de programas de usuario (UPROGS)
+
+3. Dificultades encontradas y soluciones implementadas
+Esta tarea fue bastante complicada, ya que modificar el scheduler de un sistema operativo implica tener en consideración todo el manejo de procesos y las syscall, por lo cual se requirió una búsqueda constante
+de información en foros e internet para comprender como aplicar el lottery scheduling. Algunos de los problemas encontrados fueron:
+
+Problema: Regeneración de usys.S
+Dificultad: Al agregar syscalls, usys.S no se regeneraba automáticamente, por lo cual hubo que hacerlo manualmente en la terminal.
+Solución:
+rm user/usys.S
+perl user/usys.pl > user/usys.S
+make clean && make qemu
+
+Problema: Output entremezclado
+Dificultad: Múltiples procesos escribiendo simultáneamente a stdout causaban texto mezclado en la demo
+Solución: Eliminar prints al inicio de los procesos hijo, solo imprimir al finalizar cuando hay menos competencia.
+
+Problema: Trazabilidad de slices
+Dificultad: Al no existir una syscall específica que vaya contando el número de slices y muestre el total por proceso era necesario apretar ctrl+p constantemente durante la demo.
+Solución: Implementar la syscall getrunslices() que mide esto de forma automática y lo muestra al final de la demo.
+
+4. Posibles problemas de este tipo de Scheduler 
+Problema 1: El comportamiento del sistema es probabilístico e impredecible.
+Implicancias:
+
+Dificulta el debugging (bugs no reproducibles)
+No hay garantías de tiempo real
+Imposible predecir exactamente cuándo se ejecutará un proceso
+Los mismos procesos pueden tener comportamientos diferentes en ejecuciones distintas
+
+Problema 2: La distribución de CPU solo es proporcional después de muchas ejecuciones.
+Implicancias:
+
+Con pocas ejecuciones, la variación aleatoria domina
+No es adecuado para procesos de corta duración
+La "justicia" (fairness) es estadística, no garantizada en cada momento
+
+Problema 3: Un proceso con pocos tickets podría no ser seleccionado nunca.
+Implicancia:
+
+Aunque la probabilidad es extremadamente baja, teóricamente es posible
+Proceso con 1 ticket compitiendo contra procesos con 1000 tickets tiene probabilidad ~0.1%
+
+Problema 4: No se pueden garantizar prioridades absolutas.
+Implicancias:
+
+Si un proceso crítico debe ejecutarse inmediatamente, Lottery no lo garantiza
+Siempre existe probabilidad (aunque pequeña) de que un proceso de baja prioridad se ejecute antes
+No adecuado para sistemas de tiempo real
+Procesos críticos del sistema no pueden tener garantías de ejecución
+
+Problema 5: Finalmente, es necesario implementar modificaciones de seguridad a futuro para evitar que algun proceso aumente en forma maliciosa su número de tickets, cosa que no se revisa actualmente.
