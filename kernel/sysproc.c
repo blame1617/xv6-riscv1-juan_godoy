@@ -98,3 +98,29 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64
+sys_mrdprotect(void)
+{
+  uint64 addr;
+  int len;
+  
+  // En xv6, estas funciones son void y modifican directamente las variables
+  argaddr(0, &addr);
+  argint(1, &len);
+    
+  return vmrdprotect(myproc()->pagetable, addr, len);
+}
+
+uint64
+sys_munrdprotect(void)
+{
+  uint64 addr;
+  int len;
+  
+  argaddr(0, &addr);
+  argint(1, &len);
+    
+  return vmunrdprotect(myproc()->pagetable, addr, len);
+}

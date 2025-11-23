@@ -20,3 +20,6 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+
+#define SYS_mrdprotect  22  // o el siguiente número disponible
+#define SYS_munrdprotect 23

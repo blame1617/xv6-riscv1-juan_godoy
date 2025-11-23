@@ -104,4 +104,6 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int need_clear_pte_r;    // Flag para limpiar PTE_R
+  uint64 clear_pte_addr;   // Dirección de la página a limpiar
 };

@@ -485,3 +485,70 @@ ismapped(pagetable_t pagetable, uint64 va)
   }
   return 0;
 }
+
+
+int
+vmrdprotect(pagetable_t pagetable, uint64 addr, int len)
+{
+  uint64 a;
+  pte_t *pte;
+  
+  if(len <= 0)
+    return -1;
+  if(addr % PGSIZE != 0)
+    return -1;
+  if(addr >= MAXVA)
+    return -1;
+    
+  for(a = addr; a < addr + len * PGSIZE; a += PGSIZE) {
+    if(a >= MAXVA)
+      return -1;
+      
+    pte = walk(pagetable, a, 0);
+    
+    if(pte == 0)
+      return -1;
+    if((*pte & PTE_V) == 0)
+      return -1;
+    if((*pte & PTE_U) == 0)
+      return -1;
+      
+    // Marcar con el bit de software y quitar lectura
+    *pte = (*pte | PTE_RSW) & ~PTE_R;
+  }
+  
+  return 0;
+}
+
+int
+vmunrdprotect(pagetable_t pagetable, uint64 addr, int len)
+{
+  uint64 a;
+  pte_t *pte;
+  
+  if(len <= 0)
+    return -1;
+  if(addr % PGSIZE != 0)
+    return -1;
+  if(addr >= MAXVA)
+    return -1;
+    
+  for(a = addr; a < addr + len * PGSIZE; a += PGSIZE) {
+    if(a >= MAXVA)
+      return -1;
+      
+    pte = walk(pagetable, a, 0);
+    
+    if(pte == 0)
+      return -1;
+    if((*pte & PTE_V) == 0)
+      return -1;
+    if((*pte & PTE_U) == 0)
+      return -1;
+      
+    // Quitar marca y restaurar lectura
+    *pte = (*pte & ~PTE_RSW) | PTE_R;
+  }
+  
+  return 0;
+}
