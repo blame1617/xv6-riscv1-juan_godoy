@@ -98,3 +98,37 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_mrdprotect(void)
+{
+  uint64 addr;
+  int len;
+  struct proc *p = myproc();
+
+  argaddr(0, &addr);
+  argint(1, &len);
+
+  // Validación: asegurar que el rango está dentro del tamaño del proceso
+  // Nota: usa PGROUNDUP para asegurar que cubres la página completa si len > 0
+  if(addr + len * PGSIZE > p->sz)
+    return -1;
+
+  return mrdprotect(p->pagetable, addr, len);
+}
+
+uint64
+sys_munrdprotect(void)
+{
+  uint64 addr;
+  int len;
+  struct proc *p = myproc();
+
+  argaddr(0, &addr);
+  argint(1, &len);
+
+  if(addr + len * PGSIZE > p->sz)
+    return -1;
+
+  return munrdprotect(p->pagetable, addr, len);
+}

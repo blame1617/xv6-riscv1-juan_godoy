@@ -485,3 +485,67 @@ ismapped(pagetable_t pagetable, uint64 va)
   }
   return 0;
 }
+
+// Tarea 3: Write-Only Memory implementation
+int
+mrdprotect(pagetable_t pagetable, uint64 addr, int len)
+{
+  uint64 va;
+  pte_t *pte;
+  
+  // Validaciones iniciales
+  if(addr % PGSIZE != 0) return -1; // addr debe estar alineada [cite: 31]
+  if(len <= 0) return -1; // len debe ser positivo [cite: 31]
+
+  // Verificar que todo el rango sea válido antes de modificar nada (opcional, pero recomendado)
+  // O podemos ir modificando y si falla algo, retornar error.
+  
+  for(int i = 0; i < len; i++){
+    va = addr + i * PGSIZE;
+    
+    // Validar que no nos pasamos del MAXVA (aunque el user space es menor)
+    if(va >= MAXVA) return -1;
+
+    // Obtener el PTE
+    pte = walk(pagetable, va, 0);
+    
+    // Validaciones de la página [cite: 33, 34]
+    if(pte == 0 || (*pte & PTE_V) == 0) return -1; // No mapeada
+    if((*pte & PTE_U) == 0) return -1; // No es memoria de usuario (seguridad)
+
+    // Aplicar protección: Limpiar bit PTE_R [cite: 14, 18]
+    *pte &= ~PTE_R;
+  }
+  
+  // Flush TLB para asegurar que el cambio surta efecto inmediatamente
+  sfence_vma();
+  
+  return 0;
+}
+
+int
+munrdprotect(pagetable_t pagetable, uint64 addr, int len)
+{
+  uint64 va;
+  pte_t *pte;
+
+  if(addr % PGSIZE != 0) return -1;
+  if(len <= 0) return -1;
+
+  for(int i = 0; i < len; i++){
+    va = addr + i * PGSIZE;
+    if(va >= MAXVA) return -1;
+
+    pte = walk(pagetable, va, 0);
+
+    if(pte == 0 || (*pte & PTE_V) == 0) return -1;
+    if((*pte & PTE_U) == 0) return -1;
+
+    // Restaurar protección: Activar bit PTE_R [cite: 15, 24]
+    *pte |= PTE_R;
+  }
+
+  sfence_vma();
+  
+  return 0;
+}
